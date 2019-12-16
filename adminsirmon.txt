@@ -1,0 +1,3 @@
+Application to server as API for administrator dashboard for sirmon application. 
+
+Created in nodejs
