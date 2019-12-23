@@ -16,7 +16,7 @@ let checkToken = (req, res, next) => {
         //console.log("Token is " + token);
         jwt.verify(token, config.secret, (err, decoded) => {
             if (err) {
-                console.log("ERror " + err);
+                console.log("Error " + err);
                 return res.json({
                     success: false,
                     message: 'Token is not valid'
@@ -27,6 +27,13 @@ let checkToken = (req, res, next) => {
                 //console.log("Decoded " + JSON.stringify(decoded, null, 2));
                 //console.log("Decoded " + req.decoded.userid1);
                 userid = req.decoded.userid1;
+                //return
+                /* return res.json({
+                    success: true,
+                    message: ' Token is validl',
+                    user: userid
+                });
+                */
                 next();
             }
         });

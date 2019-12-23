@@ -40,10 +40,10 @@ router.post('/register', (req, res) => {
         if (err) throw err
         else {
             //console.log('The solution is: ', rows);
-            res.send("Insert successfull");
+            // res.send("Insert successfull");
         }
     });
-    connection.end();
+    //connection.end();
 }); // end of register function
 
 
@@ -51,7 +51,10 @@ router.post('/login', (req, res) => {
 
     const logerror = validatedata.loginvalidlation(req.body);
     //console.log("Error is " + logerror.error.details[0].message);
-    if (logerror.error) return res.send(logerror.error.details[0].message);
+    if (logerror.error) return res.json({
+        success: false,
+        message: logerror.error.details[0].message
+    });
 
     const userid1 = req.body.userid;
     const hashpwd = req.body.password;
@@ -104,7 +107,7 @@ router.post('/login', (req, res) => {
             }
         }
     });
-    connection.end()
+    // connection.end()
 });
 
 module.exports = router;
