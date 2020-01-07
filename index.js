@@ -6,14 +6,14 @@ const session = require('express-session');
 const bodyParser = require('body-parser');
 const authjs = require('./routes/auth');
 const clientjs = require('./routes/client');
+const utiljs = require('./routes/util');
 const cors = require('cors');
 app.use(express.json());
 app.use(cors());
 
 app.use('/api/user', authjs);
 app.use('/api/client', clientjs);
-
-
+app.use('/api/util', utiljs);
 
 app.use(session({
     secret: 'secret',

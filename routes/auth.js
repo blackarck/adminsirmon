@@ -40,7 +40,7 @@ router.post('/register', (req, res) => {
         if (err) throw err
         else {
             //console.log('The solution is: ', rows);
-            // res.send("Insert successfull");
+            res.send("Insert successfull");
         }
     });
     //connection.end();
