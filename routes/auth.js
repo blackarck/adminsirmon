@@ -62,7 +62,7 @@ router.post('/login', (req, res) => {
 
     //console.log("user id is " + userid1);
     let resmsg = "";
-    connection.query('SELECT userid,emailid,user_name,password,clientid from user where userid =?', [userid1], function(err, rows, fields) {
+    connection.query('SELECT userid,emailid,user_name,password,clientid from user where userid =? and active=0', [userid1], function(err, rows, fields) {
         if (err) {
             //console.error("Error in executing query " + err.stack);
             return res.send("SQL Error cannot execute query");
@@ -81,7 +81,7 @@ router.post('/login', (req, res) => {
                             expiresIn: '1h' // expires in 24 hours
                         }
                     );
-                    console.log(" sending authentication token ");
+                    console.log("sending authentication token");
                     return res.json({
                         success: true,
                         message: 'Authentication successful!',
@@ -89,7 +89,6 @@ router.post('/login', (req, res) => {
                     });
                 } else {
                     //console.log("password error");
-
                     res.status(403).json({
                         success: false,
                         message: 'Incorrect username or password'
@@ -98,10 +97,9 @@ router.post('/login', (req, res) => {
                 }
             } else {
                 //console.log("user not found");
-
                 res.status(400).json({
                     success: false,
-                    message: 'Authentication failed! Please check the request'
+                    message: 'Authentication failed! Please recheck credentials.'
                 });
                 return;
             }

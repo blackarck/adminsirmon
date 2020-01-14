@@ -2,9 +2,6 @@ const mysql = require('mysql');
 const dbhelper = require('./databasehelper');
 
 var clientcon = dbhelper.getconnection();
-var clientname;
-var contactname;
-var contactemail;
 
 const setClient = (clientid) => {
     return new Promise((resolve, reject) => {

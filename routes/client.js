@@ -3,8 +3,14 @@ const mysql = require('mysql');
 const dotenv = require('dotenv');
 const middleware = require('./middleware');
 const dbhelper = require('./databasehelper');
+const cryptoRandomString = require('crypto-random-string');
+const util = require('./util');
+const nodemailer = require("nodemailer");
+const Email = require('email-templates');
 
 var clientcon = dbhelper.getconnection();
+
+dotenv.config();
 
 router.get('/userid', middleware.checkToken, (req, res) => {
     //console.log("logged in user is " + middleware.getuserid());
@@ -12,7 +18,7 @@ router.get('/userid', middleware.checkToken, (req, res) => {
     // res.send([1, 2, 3]);
     //return userid, username, emailid, phone
 
-    const stmt = "select clientid,userid,emailid,user_name,phone,role from user where userid=?";
+    const stmt = "select user.clientid,userid,emailid,user_name,phone,role,client_name from user,clients where user.clientid=clients.clientid and userid=?";
 
     clientcon.query(stmt, [middleware.getuserid()], function(err, rows, fields) {
         if (err) {
@@ -101,25 +107,34 @@ router.post('/addclient', middleware.checkToken, (req, res) => {
 });
 
 router.post('/adduser', middleware.checkToken, (req, res) => {
-    var stmt = "Select max(userid)+1 as userid from user";
+    var stmt = "Select max(userid)+1 as userid from lastusrid";
     var useridmax = "";
+    var genpwd = cryptoRandomString({ length: 10 });
+
+
     clientcon.query(stmt, function(err, rows, fields) {
         if (err) {
-            console.log("DB Error " + err);
+            console.log("DB Error in selecting max " + err);
         } else {
             useridmax = rows[0].userid;
-            stmt = "INSERT INTO `user`(`clientid`, `userid`, `emailid`, `user_name`, `password`, `phone`, `role`) VALUES (?,?,?,?,?,?,?)"
-            const stmtval = [req.body.clientid, useridmax, req.body.contactname, req.body.emailid, req.body.add1, req.body.add2, req.body.city, req.body.state, req.body.country];
-            clientcon.query(stmt, stmtval, function(err, rows, fields) {
+            stmt = "update lastusrid set userid= ?";
+            clientcon.query(stmt, [useridmax], function(err, rows, fields) {
                 if (err) {
-                    console.log("DB Error " + err);
+                    console.log("DB Error in updating lastusrid" + err);
                 } else {
-                    var obj1 = { success: true, message: 'Data inserted' };
-                    res.json(obj1);
-                }
-            });
+                    stmt = "INSERT INTO `user`(`clientid`, `userid`, `emailid`, `user_name`, `password`, `phone`, `role`, `active`) VALUES (?,?,?,?,?,?,?,?)"
+                    const stmtval = [req.body.clientid, useridmax, req.body.emailid, req.body.username, genpwd, req.body.phone, req.body.role, 1];
+                    clientcon.query(stmt, stmtval, function(err, rows, fields) {
+                        if (err) {
+                            console.log("DB Error in insert user:" + err);
+                        } else {
+                            res.json(resetPwd(useridmax, req.body.emailid, req.body.username));
+                        } //end of else
+                    }); //end of update query
+                } //end of else
+            }); //end of client fetch max value 
         } //end of else
-    }); //end of client fetch max value 
+    });
 });
 
 router.get('/getusers', middleware.checkToken, (req, res) => {
@@ -129,12 +144,12 @@ router.get('/getusers', middleware.checkToken, (req, res) => {
         //console.log("User role is " + userrole);
         var stmt;
         var flag = 0;
-        var stmt = "select clientid,userid,emailid, user_name,phone,role from user ";
+        var stmt = "select user.clientid,userid,emailid, user_name,phone,role,active,client_name from user,clients where user.clientid=clients.clientid ";
         if (userrole == 'suadmin') {
             flag = 1;
         }
         if (userrole == 'admin') {
-            stmt = stmt + " where clientid= " + result.clientid;
+            stmt = stmt + " and user.clientid= " + result.clientid;
             flag = 1;
         }
         //console.log("starting getclient data ");
@@ -177,7 +192,6 @@ router.post('/updateUser', middleware.checkToken, (req, res) => {
             flag = 1;
         }
 
-
         clientcon.query(stmt, stmtval, function(err, rows, fields) {
             if (err) {
                 console.log("DB Error " + err);
@@ -190,11 +204,19 @@ router.post('/updateUser', middleware.checkToken, (req, res) => {
 });
 //end of router post for update client
 
+router.post('/resetpwd', (req, res) => {
+    console.log("Recieved request for password reset " + req.body.userid);
+    res.json(resetPwd(req.body.userid, req.body.emailid, req.body.username));
+
+}); //end of router for resetpwd
+
 router.get('/clientid/:clientid', (req, res) => {
     res.send('Input param are ' + req.params.clientid, );
     //pass url as /api/clientid/:clientid/vivek -> route param
     //for query param use optional input res.query.id
 });
+
+
 
 const getUserRole = (userid) => {
     return new Promise((resolve, reject) => {
@@ -215,5 +237,87 @@ const getUserRole = (userid) => {
     });
 };
 
+const getTransporter = () => {
+    let transporter = nodemailer.createTransport({
+        host: "smtp.gmail.com",
+        port: 587,
+        secure: false, // true for 465, false for other ports
+        auth: {
+            user: process.env.EMAILID, // generated ethereal user
+            pass: process.env.EMAILPWD // generated ethereal password
+        }
+    });
+
+    return transporter;
+};
+
+const resetPwd = (useridpass, emailidpass, username) => {
+        //here we will generate random token and send it in an email
+        var randstring = cryptoRandomString({ length: 15, type: 'url-safe' });
+        //delete any previous requests from this user
+        delUserValid(useridpass);
+        var stmt = "INSERT INTO `user_valid` (`userid`, `createdon`, `randstring`) VALUES (?,?,?)";
+        let now = new Date();
+        var transporter = getTransporter();
+        const stmtval = [useridpass, now, randstring];
+
+        if (username.length > 0) {} else {
+            username = 'user';
+        }
+
+        clientcon.query(stmt, stmtval, function(err, rows, fields) {
+            if (err) {
+                console.log("DB Error in insert user_valid :" + err);
+            } else {
+                //send email to user here
+                //*************testing email functions */
+
+                const email = new Email({
+                    message: {
+                        from: process.env.EMAILID,
+                    },
+                    // uncomment below to send emails in development/test env:
+                    send: true,
+                    transport: transporter,
+                    views: { root: __dirname },
+                });
+                var url = process.env.DOMAIN + ":" + process.env.port + "/reviewpass?token=" + randstring;
+                //console.log("url is " + url);
+                email
+                    .send({
+                        template: 'adduser',
+                        message: {
+                            to: emailidpass,
+                        },
+                        locals: {
+                            name: username,
+                            urlstring: url,
+                        },
+                    })
+                    .then(resp => {
+                        //console.log("Email sent out 1 " + resp.originalMessage);
+                        var obj1 = { success: true, message: 'User Registered, registration email sent out.' };
+                        return (obj1);
+                        //res.json(obj1);
+                    })
+                    .catch(error => {
+                        console.log("error in house " + error);
+                    });
+                //*************testing eamil functions end */
+            }
+        }); //end of sql thingy
+    } //end of resetPwd
+
+
+const delUserValid = (useridpass) => {
+        var stmt = "delete from `user_valid` where `userid` =? ";
+        clientcon.query(stmt, [useridpass], function(err, rows, fields) {
+            if (err) {
+                console.log("DB Error in insert user_valid :" + err);
+            } else {
+                return true;
+            } //end of else
+        });
+    } //end of function delUserVAlid
 
 module.exports = router;
