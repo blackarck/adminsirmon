@@ -7,7 +7,8 @@ const cryptoRandomString = require('crypto-random-string');
 const util = require('./util');
 const nodemailer = require("nodemailer");
 const Email = require('email-templates');
-
+const fs = require('fs');
+const stream = require('stream');
 var clientcon = dbhelper.getconnection();
 
 dotenv.config();
@@ -211,14 +212,43 @@ router.post('/resetpwd', (req, res) => {
 }); //end of router for resetpwd
 
 router.get('/clientid/:clientid', (req, res) => {
-    res.send('Input param are ' + req.params.clientid, );
+    res.send('Input param are ' + req.params.clientid);
     //pass url as /api/clientid/:clientid/vivek -> route param
     //for query param use optional input res.query.id
-
-
 });
 
+router.get('/images/:clientid', (req, res) => {
+    //console.log("clientid is " + req.params.clientid);
+    var imgname;
+    const stmt = "select imagename from clientimg where clientid=?";
+    clientcon.query(stmt, [req.params.clientid], function(err, rows, fields) {
+        if (err) {
+            console.log("DB Error " + err);
+            return res.sendStatus(400);
+        } else {
+            if (rows.length > 0) {
+                imgname = rows[0].imagename;
+                //console.log("image name is " + imgname);
+                const r = fs.createReadStream('./images/' + imgname) // or any other way to get a readable stream
+                const ps = new stream.PassThrough() // <---- this makes a trick with stream error handling
+                stream.pipeline(
+                    r,
+                    ps, // <---- this makes a trick with stream error handling
+                    (err) => {
+                        if (err) {
+                            console.log(err) // No such file or any other kind of error
+                            return res.sendStatus(400);
+                        }
+                    })
+                ps.pipe(res) // <---- this makes a trick with stream error handling
+            } //end of if count is there
+            else {
+                return res.sendStatus(400);
+            }
+        } //end of else for query success
+    });
 
+});
 
 const getUserRole = (userid) => {
     return new Promise((resolve, reject) => {

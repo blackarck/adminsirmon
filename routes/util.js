@@ -9,6 +9,7 @@ const bcrypt = require('bcrypt');
 const saltRounds = 10;
 const salt = bcrypt.genSaltSync(saltRounds);
 const Email = require('email-templates');
+const date = require('date-and-time');
 
 dotenv.config();
 
@@ -163,7 +164,46 @@ router.get('/getroles', middleware.checkToken, (req, res) => {
         }
     });
     //clientcon.end();
-});
+}); //end of router get for getroles
+
+//middleware.checkToken,
+router.get('/getavlblsts', (req, res) => {
+    const now = new Date();
+    //console.log("Getting getavlblsts request " + req.query.clientid + " date " + date.format(now, 'DD-MMM-YYYY'));
+    const stmt = "SELECT distinct SERVER_TYPE FROM `server_log` where clientid=? and  date(lastupddttm)=STR_TO_DATE(?,'%d-%M-%Y')";
+
+    clientcon.query(stmt, [req.query.clientid, date.format(now, 'DD-MMM-YYYY')], function(err, rows, fields) {
+        if (err) {
+            console.log("DB Error " + err);
+        } else {
+            //console.log("rows length is " + rows.length);
+            if (rows.length > 0) {
+                rows.forEach(element => {
+                    console.log("Row elements are " + element.SERVER_TYPE);
+                    //for each server get the availability for today and yesterday
+                    //structure for response is servertype   date  app% web% db%
+                    var succfig;
+                    var srvname = element.SERVER_TYPE;
+                    getServerAvlbl(req.query.clientid, srvname, date.format(now, 'DD-MMM-YYYY')).then(result => {
+                        succfig = result.avlbltprcnt;
+                        console.log("Success figure for server " + srvname + " is " + succfig);
+                    }).catch(err =>
+                        console.log("Error in getserveravlbl callback " + err));
+                    //will have to chain multiple promises here.
+                });
+
+                var obj1 = { success: true, message: 'result fetched' };
+                var object3 = Object.assign(obj1, rows);
+                res.json(object3);
+            } else {
+                //return error
+                console.log("Getting error here ");
+            }
+
+        }
+    });
+
+}); //end of router for getavlblsts
 
 const getTransporter = () => {
     let transporter = nodemailer.createTransport({
@@ -178,5 +218,26 @@ const getTransporter = () => {
 
     return transporter;
 };
+
+getServerAvlbl = (clientid, servertype, dates) => {
+        return new Promise((resolve, reject) => {
+            var avlbltprcnt = 0;
+            //console.log("Input params are " + clientid + " servtype " + servertype + " dates " + dates);
+            stmt = "SELECT count(*) as succfig FROM `server_log` where date(lastupddttm)= STR_TO_DATE(?,'%d-%M-%Y') and clientid=? and server_type=? and server_status='Success-OK'";
+            clientcon.query(stmt, [dates, clientid, servertype], function(err, rows, fields) {
+                if (err) {
+                    console.log("DB Error " + err);
+                } else {
+                    //console.log("rows length is " + rows.length);
+                    if (rows.length > 0) {
+                        resolve({
+                            avlbltprcnt: rows[0].succfig
+                                // console.log("succ figure is " + avlbltprcnt + " for server " + servertype);
+                        })
+                    } //end of if
+                } //end of else
+            });
+        }); //end of promise
+    } //end of function getserveravlbl
 
 module.exports = router;
