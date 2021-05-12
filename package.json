@@ -23,7 +23,7 @@
     "jsonwebtoken": "^8.5.1",
     "mysql": "^2.17.1",
     "mysql2": "^2.0.2",
-    "nodemailer": "^6.4.2",
+    "nodemailer": "^6.4.16",
     "pug": "^2.0.4",
     "sequelize": "^5.21.2"
   }
